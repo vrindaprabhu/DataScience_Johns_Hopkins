@@ -1,5 +1,5 @@
 
-pollutantmean <- function(directory, pollutant, id = 1:5) {
+pollutantmean <- function(directory, pollutant, id = 1:332) {
   
   ## file.directory gives the location of the CSV files
   file.directory <- file.path(getwd(),directory)
@@ -16,7 +16,7 @@ pollutantmean <- function(directory, pollutant, id = 1:5) {
 }
 
 
-completeV1 <- function(directory, id = 1) {
+completeV1 <- function(directory, id = 1:332) {
   
   ## file.directory gives the location of the CSV files
   file.directory <- file.path(getwd(),directory)
@@ -39,7 +39,7 @@ completeV1 <- function(directory, id = 1) {
 }
 
 
-complete <- function(directory, id = 1) {
+complete <- function(directory, id = 1:332) {
   
   ## file.directory gives the location of the CSV files
   file.directory <- file.path(getwd(),directory)
