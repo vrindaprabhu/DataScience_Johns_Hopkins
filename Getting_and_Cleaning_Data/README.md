@@ -14,7 +14,7 @@ Repo for the submission of the course project for the Johns Hopkins Getting and 
 
 ### Additional Information
 
-* Most importantly the scripts assues that the data is already present in the local directory for testing.
+* Most importantly the scripts assumes that the data is already present in the local directory for testing.
 * Information on the variables, the data, and any transformations or work performed to clean up the data can be found in CodeBook.md
 * Inertial Signals data is not used
 * Comments are welcome.
