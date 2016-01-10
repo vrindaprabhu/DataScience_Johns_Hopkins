@@ -1,0 +1,170 @@
+---
+title: "Reproducible Research:Assignment_1"
+author: "Vrinda Prabhu"
+date: "Saturday 09 January 2016"
+output: html_document
+---
+
+## Including the required library and reading the datasets required
+
+The *raw_df* is a data frame constructed by reading directly from csv provided.It is then converted into data table format *raw_table*.
+The *active_df* is data frame having removed all NA values.It is then converted into data table format *active_table*.
+Also **date** in *active_df* is converted from factor to Date format.
+
+```{r Loading library}
+library(data.table)
+library(ggplot2)
+
+raw_df <- read.csv('activity.csv')
+raw_table <- data.table(raw_df)
+
+active_df <- raw_df[complete.cases(raw_df),]
+active_df[,'date'] <- as.Date(active_df[,'date'], "%Y-%m-%d")
+active_table <- data.table(active_df)
+
+```
+
+## REQUIREMENT 1
+
+Here the total number of steps taken per day is calculated and a *histogram* and *barplot* plotted for the same.
+[Difference between bar graphs and histograms can be found here](http://stattrek.com/statistics/charts/histogram.aspx?Tutorial=AP)
+Owing to link shared,I was prompted for the bar graph.Please validate my understanding.
+
+Also calculated is the mean and the median.
+
+```{r Requirement 1}
+setkey(active_table,date)
+steps_per_day <- active_table[, list(steps=sum(steps)), by=key(active_table)] 
+
+steps_per_day_plot_1 <- ggplot(steps_per_day, aes(steps))
+steps_per_day_plot_1 <- steps_per_day_plot+ geom_histogram( binwidth = 1000,col="red", fill="blue" ,alpha = .2) +
+                        xlab('Count of steps') +
+                        ylab('Frequency') +
+                        labs(title = 'Histogram of the total number of steps taken each day') +
+                        theme(plot.title = element_text(hjust = 0.5))
+steps_per_day_plot_1
+
+
+
+
+steps_per_day_plot_2 <- ggplot(steps_per_day, aes(date,steps))
+steps_per_day_plot_2 <- steps_per_day_plot_2 + geom_bar(stat = 'identity', binwidth = 1000,col="red", fill="blue" ,alpha = .2)+
+                        xlab('Date') +
+                        ylab('Count of steps') +
+                        labs(title = 'Barplot of the total number of steps taken each day') +
+                        theme(plot.title = element_text(hjust = 0.5))
+steps_per_day_plot_2
+
+
+steps_per_day_mean <- mean(steps_per_day$steps)
+steps_per_day_mean
+
+steps_per_day_median <- median(steps_per_day$steps)
+steps_per_day_median
+
+```
+
+
+## REQUIREMENT 2
+
+Below code is to understand the average daily activity pattern.
+This is achieved by a time series plot of the 5-minute interval and the average number of steps taken, averaged across all days.
+
+Also the **_max_interval_** gives 5-minute interval, on average across all the days that contains the maximum number of steps.
+
+```{r Requirement 2}
+setkey(active_table,interval)
+steps_per_interval <- active_table[, list(steps=mean(steps)), by=key(active_table)] 
+
+steps_per_interval_plot <- ggplot(steps_per_interval, aes(interval,steps))
+steps_per_interval_plot <- steps_per_interval_plot + geom_line(col="red", size=0.4) +
+                           xlab('Interval') +
+                           ylab('Number of steps') +
+                           labs(title = 'Time series plot of the average number of steps taken') +
+                           theme(plot.title = element_text(hjust = 0.5))
+                          
+steps_per_interval_plot
+
+row_ind <- which.max(steps_per_interval$steps)
+max_interval <- steps_per_interval[row_ind,interval]
+max_interval
+
+```
+
+## REQUIREMENT 3
+The **_na_number_** reports the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+
+NAs are filled using the mean number of steps for that 5-minute interval.This is achieved by finding mean steps across intervals and later imputing the same.Codewise the *data.table* chaining is used.
+
+Histograms and bar plots of total number of steps taken per day are plotted with the imputed data.
+Owing to my understanding,I also plotted the bar graph (feel its more informative).Please validate my understanding.
+
+Also calculated is the mean and the median.
+
+It is noticed that mean remains same whilst there is a slight change in the median.
+
+```{r Requirement 3}
+na_number <- table(complete.cases(raw_df))[1]
+na_number
+
+raw_table <- raw_table[,steps := as.double(steps)
+                      ][,steps.mean := mean(steps, na.rm = TRUE),by=interval  # mean across interval
+                      ][is.na(steps), steps := steps.mean  # filling NAs with calculated mean
+                      ][, steps.mean := NULL]  # dropping the column created
+head(raw_table,10)
+
+steps_per_day_wona <- raw_table[, list(steps=sum(steps)), by=date] 
+
+steps_perday_wona_plot_1 <- ggplot(steps_per_day_wona, aes(steps))
+steps_perday_wona_plot_1 <- steps_perday_wona_plot_1 + geom_histogram( binwidth = 1000,col="red", fill="blue" ,alpha = .2) +
+                            xlab('Count of steps') +
+                            ylab('Frequency') +
+                            labs(title = 'Histogram of the total number of steps taken each day\n after missing values are imputed') +            
+                            theme(plot.title = element_text(hjust = 0.5))
+steps_perday_wona_plot_1
+
+
+steps_perday_wona_plot_2 <- ggplot(steps_per_day_wona, aes(date,steps))
+steps_perday_wona_plot_2  <- steps_perday_wona_plot_2  + geom_bar(stat = 'identity', binwidth = 1000,col="red", fill="blue" ,alpha = .2)+
+                             xlab('Date') +
+                             ylab('Count of steps') +
+                             labs(title = 'Barplot of the total number of steps taken each day') +
+                             theme(axis.text.x = element_text(angle = 90, hjust = 1))
+steps_perday_wona_plot_2 
+
+
+steps_per_day_wona_mean <- mean(steps_per_day_wona$steps)
+steps_per_day_wona_mean
+
+steps_per_day_wona_median <- median(steps_per_day_wona$steps)
+steps_per_day_wona_median
+
+```
+
+
+## REQUIREMENT 4
+
+A new factor variable is created in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.This is done using the **decide_day** function,inherently using *weekdays()* function.
+
+A panel plot containing a time series plot of the 5-minute interval and the average number of steps taken, averaged across all weekday days or weekend days is later plotted.
+
+```{r Requirement 4}
+decide_day <- function(x){
+  single_day <- weekdays(as.Date(x))
+  ifelse(single_day %in% c('Saturday','Sunday'),'weekend','weekday')
+}
+
+raw_table <- raw_table[,'day' := decide_day(date),with = F]
+head(raw_table)
+
+setkey(raw_table,interval,day)
+steps_per_interval_day <- raw_table[, list(steps=mean(steps)), by=key(raw_table)] 
+steps_per_interval_day_plot <- ggplot(steps_per_interval_day,aes(interval,steps)) + geom_line(col='red') 
+steps_per_interval_day_plot <- steps_per_interval_day_plot + facet_grid(day ~ .) +
+                               xlab('Interval') +
+                               ylab('Steps') +
+                               labs(title = 'Panel plot comparing the average number of steps taken\n per 5-minute interval across weekdays and weekends') +
+                               theme(plot.title = element_text(hjust = 0.5))
+steps_per_interval_day_plot
+
+```
