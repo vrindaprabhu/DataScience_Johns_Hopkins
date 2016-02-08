@@ -1,0 +1,118 @@
+---
+title: "Exponential distribution in R and its comparison with the Central Limit Theorem."
+author: "Vrinda Prabhu"
+date: "Saturday 30 January 2016"
+output: html_document
+---
+
+The main aim of this simulation exercise is to investigate the exponential distribution in R and compare it with the Central Limit Theorem. Like clearly instructed in the assignment details,the exponential distribution can be simulated in R with rexp(n, lambda) where lambda is the rate parameter. 
+
+Also we have been instructed to set lambda = 0.2 for all of the simulations.Also we have been asked to do a thousand simulations and investigate the distribution of averages of 40 exponentials.Let us proceed to do the same.
+
+```{r,echo=FALSE}
+setwd('~/Desktop/HW/Assignment_1/')
+
+```
+
+
+##Loading the required library
+```{r}
+library(ggplot2)
+```
+
+##Simulation of required distribution
+```{r}
+#Values required for distribution as specified
+lambda <- 0.2 
+numb_exp <- 40 
+
+#Number of simulations
+simulations <- 1000
+
+#Since this is a simulation,let us set seed for reproducibility
+set.seed(2048) #Game inspired (Sorry!)
+
+#Generate the matrix of exponential distribution(s)
+exp_distro <- matrix(data=rexp(numb_exp * simulations, lambda), nrow=simulations)
+```
+
+```{r,echo=FALSE}
+cat('Dimensions of exp_distro: ' ,dim(exp_distro))
+```
+
+
+###Requirement 1
+####Show the sample mean and compare it to the theoretical mean of the distribution.
+
+We have been told that the mean of exponential distribution is 1/lambda.This is theortical.
+To calculate the actual sample mean,we take the mean of means of each row in the **exp_distro** matrix.
+
+```{r}
+theoretical_mean <- 1/lambda
+row_means_exp_distro <- apply(exp_distro,1,mean)
+sample_mean <- mean(row_means_exp_distro)
+
+```
+
+```{r,echo=FALSE}
+cat('The theoretical mean is : ',theoretical_mean)
+cat('The sample mean from the distribution is : ',sample_mean)
+```
+
+
+###Requirement 2
+####Show how variable the sample is (via variance) and compare it to the theoretical variance of the distribution.
+
+We have been told that the standard deviation of exponential distribution is 1/lambda.Squaring up of standard deviation gives the variance.This is theortical.
+To calculate the actual sample standatd deviation and sample variance ,we take the standatd deviation and sample variance of means of each row in the **exp_distro** matrix.
+
+```{r}
+theoretical_std_dev <- 1/(lambda * sqrt(numb_exp))
+theoretical_var <- theoretical_std_dev^2
+
+sample_std_dev <- sd(row_means_exp_distro)
+sample_var <- var(row_means_exp_distro)
+```
+
+```{r,echo=FALSE}
+cat('The theoretical standard deviation is  : ',theoretical_std_dev)
+cat('The sample standard deviation is : ',sample_std_dev)
+
+cat('The theoretical variance is  : ',theoretical_var)
+cat('The sample variance is : ',sample_var)
+```
+
+
+###Requirement 3
+####Show that the distribution is approximately normal.
+
+We have been specifically asked to focus on the difference between the distribution of a large collection of random exponentials and the distribution of a large collection of averages of 40 exponentials.
+
+This is where we try to compare the exponential distribution and the CLT.Ideally the calculated distribution of means of random sampled exponantial distributions should follow the normal distribution with the expected values based on the given lambda.Let us graph it out for further understanding:
+
+
+```{r}
+# plot the means
+
+row_means_exp_df <- as.data.frame(row_means_exp_distro)
+names(row_means_exp_df) <- c('ROWMEANS')
+compare_plot <- ggplot(data = row_means_exp_df, aes(x = ROWMEANS)) + 
+                geom_histogram(binwidth=0.1, aes(y=..density..), colour = 'yellow',alpha = 0.3)  
+
+#For CLT:
+compare_plot <- compare_plot +  stat_function(fun = dnorm, arg = list(mean = theoretical_mean ,sd = theoretical_std_dev), colour = "red", size=1) + 
+               geom_vline(xintercept = theoretical_mean, size=1, colour="blue") 
+      
+#Density of generated distribution
+compare_plot <- compare_plot + geom_density(colour="purple", size=1) +
+               geom_vline(xintercept = sample_mean, size=1, colour="magenta",linetype = "longdash")
+
+compare_plot <- compare_plot + xlab('Means of 40 selections') + ylab('Density') + 
+                               labs(title = 'Comparison of Exponential Distribution and CLT ')
+
+compare_plot 
+
+```
+
+Though not a strong overlap,we notice that calculated distribution of means of random sampled exponential distribution is closely followed by normal distribution with the expected values based on the given lambda.
+

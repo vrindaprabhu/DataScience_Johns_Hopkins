@@ -1,0 +1,185 @@
+---
+title: "Analysis of the ToothGrowth data"
+author: "Vrinda Prabhu"
+date: "Sunday 31 January 2016"
+output: html_document
+---
+
+In this project we use the inherent ToothGrowth dataset to perform some basic exploratory data analyses.Also we draw some conclusions based on confidence intervals and/or hypothesis tests to compare tooth growth by supp and dose. 
+
+```{r,echo=FALSE} 
+setwd('~/Desktop/HW/Assignment_1/')
+```
+
+Loading the required library
+```{r}
+library(ggplot2)
+library(plyr)
+library(gridExtra)
+library(datasets)
+```
+
+Loading the required data and having a first look at it
+```{r}
+data(ToothGrowth)
+str(ToothGrowth)
+
+ToothGrowth <- ToothGrowth 
+ToothGrowth$dose = as.factor(ToothGrowth$dose)
+
+head(ToothGrowth)
+```
+
+
+##Exploratory Analysis
+```{r}
+explore_plot <- ggplot(ToothGrowth,aes(x = dose,y = len)) 
+explore_plot <- explore_plot  + geom_point(data = ToothGrowth,aes(colour=supp),size=4) +
+                          xlab('Dosage') + ylab('Length') +
+                          labs(title = 'Effect of supp on tooth growth for particular dosage') +
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5))
+
+```
+
+
+Not much detailed insights can be observed except that both orange juice and vitamin C have greater impact on higher dosages.
+```{r,echo=FALSE}
+explore_plot
+```
+
+Let us do box plots for a more precise understanding.
+```{r}
+separate_supp_plot <- ggplot(data=ToothGrowth, aes(x=dose,y=len,fill=dose)) 
+separate_supp_plot <- separate_supp_plot + geom_boxplot() + facet_grid(.~supp) +
+                                            xlab('Dosage') + ylab('Length') +
+                                            labs(title = 'Effect of tooth growth across supp') +
+                                            theme(plot.title = element_text(face ='bold',hjust = 0.5))
+  
+  
+separate_dose_plot <- ggplot(data=ToothGrowth, aes(x=supp,y=len,fill=supp)) 
+separate_dose_plot <- separate_dose_plot + geom_boxplot() + facet_grid(.~dose) +
+                                            xlab('Supp') + ylab('Length') +
+                                            labs(title = 'Effect of tooth growth across dosages') +
+                                            theme(plot.title = element_text(face ='bold',hjust = 0.5))
+
+```
+
+
+The below plot allows us to draw some interesting insights:
+The medians across the 0.5 and 1 dosages varies.This means that VC and OJ have completely variable impact on length. 
+
+* At 0.5 dosage,VC shows right skewness (Even OJ but on a smaller scale).OJ has a greter impact on length.
+* At 1 dosage both VC and OJ have an even spread around the median in the IQR.Even here OJ has a larger impact also the IQR is greater for OJ meaning higher variablity across lengths.
+* At 2 dosage,both have equal medians.This means on an average both have same impact on length.But a greater spread of VC confirms that the variablity is higher than OJ.
+
+```{r,echo=FALSE}
+grid.arrange(separate_supp_plot,separate_dose_plot,nrow=2)
+```
+
+This can be re-iterated using summary statistics.    
+  
+For OJ :
+```{r,echo=FALSE} 
+summary(ToothGrowth[which(ToothGrowth$supp == 'OJ'), ])
+```
+For VC :
+```{r,echo=FALSE} 
+summary(ToothGrowth[which(ToothGrowth$supp == 'VC'), ])
+```
+
+We can even have a look at the variabilty across dosages for each supplement to get a clearer understading.
+```{r}
+ddply(ToothGrowth, .(supp,dose), summarise, variance=var(len))
+```
+
+
+##Deriving conclusions using Hypothesis Testing
+
+###Assumptions
+
+Since we will primarily use t-tests,we have to make following assumptions :  
+1. Tooth growth (len) follows a normal distribution.  
+2. Variances of tooth growth are different when using different supplement and dosage.  
+3. The variables (len, dose, supp) must be independent and identically distributed (i.i.d.).  
+
+###Hypothesis 1:
+
+Null      : The variation of length is independent of dosages.  
+Alternate : Greater the dosage,greater is increase in the length.
+
+```{r}
+dosage_group <- split(x = ToothGrowth,f = ToothGrowth$dose , drop = FALSE)
+
+par(mfrow=c(1,3))
+plot(density(dosage_group[[1]]$len),xlab = 'Length',main = 'Dose = 0.5')
+plot(density(dosage_group[[2]]$len),xlab = 'Length',main = 'Dose = 1')
+plot(density(dosage_group[[3]]$len),xlab = 'Length',main = 'Dose = 2')
+mtext("Density Plots across dosages", side=3, outer=TRUE, line=-1.5)
+```
+
+Since the length across dosages are roughly normally distributed,we can proceed with t-Test to compare the means of two groups.
+```{r}
+dose_05_1 <- t.test(dosage_group[[1]]['len'], dosage_group[[2]]['len'], alternative = "less", paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+dose_05_1
+
+dose_1_2 <- t.test(dosage_group[[2]]['len'],dosage_group[[3]]['len'], alternative = "less", paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+dose_1_2
+
+cat('p-values across both the tests are ',dose_05_1$p.value,'and',dose_1_2$p.value,'respectively')
+```
+
+####Conclusion 
+Since p-values in both the cases are less than 0.05, *we can reject the null hypothesis*.
+It can be safely concluded that higher the dosage, the greater the impact on tooth growth.
+
+
+###Hypothesis 2:
+
+Null      : The variation of length is independent of supplement.  
+Alternate : More tooth growth when using supplement OJ than VC.
+
+```{r}
+supp_group <- split(x = ToothGrowth,f = ToothGrowth$supp , drop = FALSE)
+
+par(mfrow=c(1,2))
+plot(density(supp_group[[1]]$len),xlab = 'Length',main = 'Supp = OJ')
+plot(density(supp_group[[2]]$len),xlab = 'Length',main = 'Dose = VC')
+mtext("Density Plots across supp", side=3, outer=TRUE, line=-1.5)
+```
+
+Since the length across supplements are roughly normally distributed,we can proceed with t-Test to compare the means of two groups.Also we can see that plot center of OJ is greater than VC.
+```{r}
+supp_OJ_VC <- t.test(supp_group[[1]]['len'],supp_group[[2]]['len'], alternative = "greater", paired = FALSE, var.equal = FALSE, conf.level =0.95)
+supp_OJ_VC 
+
+cat('p-values in of the test is',supp_OJ_VC$p.value)
+```
+
+####Conclusion  
+
+Since p-values is less than 0.05, we can reject the null hypothesis. 
+It can be concluded that if supplement is OJ, it has a greater impact on tooth growth than VC.
+
+**However because of the conclusion of box-plot (recall same median at dose = 2),let us try to be little more detailed on above conclusion.**  
+
+Splitting data on supp and dose levels and including a t-test function.
+```{r}
+supp_dose_group <- split(x = ToothGrowth,f = list(ToothGrowth$supp,ToothGrowth$dose) , drop = FALSE)
+
+p_val_list <- NULL
+for(i in seq(from = 1,length(supp_dose_group),by=2)){
+  p_val <- t.test(supp_dose_group[[i]]['len'],supp_dose_group[[i+1]]['len'],paired = FALSE, var.equal = FALSE, conf.level =0.95)
+  p_val_list <- c(p_val_list,p_val$p.value)
+}
+
+cat('p-value for dose = 0.5 is',p_val_list[[1]])
+cat('p-value for dose = 1 is',p_val_list[[2]])
+cat('p-value for dose = 2 is',p_val_list[[3]])
+```
+
+##Overall Conclusion
+
+So in detail :  
+1. There is an impact on tooth growth by dosage.Higher the dosage higher the tooth growth length (either OJ or VC).  
+2. We can safely reject the null hypothesis that in dose = 0.5 and dose = 1, and accept that OJ supplement has a greater impact on tooth growth than VC (p-value < 0.05).    
+3. However,when dose = 2,we cannot claim the same since p-value > 0.05,hence ,**we cannot reject the null hypothesis** but conclude that **there is insufficient evidence** to show that OJ has higher impact than VC.
