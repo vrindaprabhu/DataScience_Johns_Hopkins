@@ -1,0 +1,348 @@
+---
+title: "Storm Data Analysis"
+author: "Vrinda Prabhu"
+date: "Wednesday, January 27, 2016"
+output: html_document
+---
+
+# **Study of impact of severe weather events on public health and economic conditions in the US.**
+
+## **SYNOPSIS**
+
+The National Oceanic and Atmospheric Administration (NOAA) The database currently contains data from *January 1950 to September 2015*, as entered by NOAA's National Weather Service (NWS). The data contains the type of storm event, details like location and the timestamp details. Also logged are the extent of economic damage *(i.e. the damage to crops and properties)* as well as the impact on public health *(i.e. the number of fatalities and the casualities(injuries))* due to a particular event per year. 
+
+In this report we will investigate which type of events are the most harmful with respect to the population and also financially.Some insights are summarized as below :
+1. We see that **Tornado** is by far the highest cause for injuries.Also we observe that Alabama is highly affected by Tornado.
+2. **Excessive Heat** cause the most fatalities.Illinois has accounted for highest deaths due to this event.
+3. Under the economic damages **Floods** causes highest property damage (around 40% with and California bearing 80% of the damage).
+4. The crop damage is mainly due to **Draught** (around 40% with and Texas bearing 50% of the damage).
+
+Also observed is is that the impact on humans, be it injuries or fatalities, isn't directly correlated to the ecomomic damage weather events cause.
+
+Please note that data from 1995 onwards is considered so as to provide unbiased results.
+
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+setwd('C://Users//vrindaprabhu//Desktop//HW//Me/')
+#setwd('IntroToBDA/Reproducible_Research/PA_2/')
+```
+
+## **DATA PRE-PROCESSING**
+
+Reading the bz2 file and including necessary libraries to perform transformations,computataions and for plotting of data.
+
+```{r Loading required libraries and data}
+library(data.table)
+library(stringr)
+library(ggplot2)
+library(gridExtra)
+library(plyr)
+library(xtable)
+
+storm_data_raw <- read.csv(bzfile("repdata_data_StormData.csv.bz2"), header = TRUE) 
+```
+
+### Pre-processing and selecting data 
+The storm events data has been collected since 1950.However the later years (i.e. after 1995) account for more observations.This is mainly because only few events were actually being followed and reorded in the data.Hence usage of this data subset may yield to skewed results. 
+To avoid this impact we consider only those observations recorded later to 1995.
+[This is reiterated in this link](http://www.ncdc.noaa.gov/stormevents/details.jsp?type=eventtype)
+
+```{r Underatnding data,results='asis'}
+
+print(xtable(head(storm_data_raw,10)),type='html')
+storm_data_raw$YEAR <- as.numeric(format(as.Date(storm_data_raw$BGN_DATE, format = "%m/%d/%Y %H:%M:%S"), "%Y"))
+storm_data_raw$EVTYPE <- str_trim(toupper(storm_data_raw$EVTYPE))
+
+storm_data <- data.table(storm_data_raw)
+
+events_occurance <- storm_data[,.N,by=list(EVTYPE)][order(-N)]
+event_spread <- storm_data[,.N,by=list(YEAR,EVTYPE)]
+setnames(event_spread,'N','NumberOfEvents')
+summarize_event_spread <- event_spread[,list(UniqueEvents=length(unique(EVTYPE)),EventsCount = sum(NumberOfEvents)),by=YEAR]
+
+```
+
+The **event_spread** table is used to understand the spread of each event on an yearly basis.It is observed that only tornado,hail and thunderstorm winds govern the events list till 1995.Understandbly so since they were the only event types recorded.(Only first 100 records printed for the report)
+
+```{r,results='asis',echo=FALSE}
+print(xtable(event_spread[1:50]),type='html')
+```
+
+The **summarize_event_spread** is a high level summary which compresses the previous table to just include the number of unique events recorded on an yearly basis and the total number of events recorded.
+
+```{r,results='asis',echo=FALSE}
+print(xtable(summarize_event_spread[1:20]),type='html')
+```
+
+From the above tables,it is clear that we can ignore data upto 1995.
+
+```{r Subset data}
+storm_data <- subset(storm_data, YEAR > 1995)
+```
+
+The NWS documentation about the data reports only 48 events but 985 event types are present in the dataset.This exhaustive categorisation of the event types should be reduced to similar instances. Instead of correcting all of them,we only analyse those events having a higher number of occurance and assign only those to one of the 48 correct ones.In this way we effectifly cover the majority and all useful data record.
+
+However we do try to bucket those events differentiated by a versions/categories as a single event.
+
+```{r Cleaning data}
+storm_data <- storm_data[,EVTYPE :=  gsub("^RIP CURRENT.*", "RIP CURRENT",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^HIGH WIND.*", "HIGH WIND",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^DUST STORM.*$", "DUST STORM",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^COASTAL FLOOD.*", "COASTAL FLOOD",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^WATERSPOUT.*", "WATERSPOUT",EVTYPE)]
+
+storm_data <- storm_data[,EVTYPE :=  gsub("^FLASH FLOOD.*|^RAPIDLY RISING WATER$", "FLASH FLOOD", EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^(SMALL )?HAIL.*", "HAIL",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("TSTM|THUNDERSTORMS?", "THUNDERSTORM",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^TH?UN?DEE?RS?TO?RO?M ?WIND.*|^(SEVERE )?THUNDERSTORM$|^WIND STORM$|^(DRY )?MI[CR][CR]OBURST.*|^THUNDERSTORMW$", "THUNDERSTORM WIND",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^FLOODS?.*|^URBAN/SML STREAM FLD$|^(RIVER|TIDAL|MAJOR|URBAN|MINOR|ICE JAM|RIVER AND STREAM|URBAN/SMALL STREAM)? FLOOD(ING)?S?$|^HIGH WATER$|^URBAN AND SMALL STREAM FLOODIN$|^DROWNING$|^DAM BREAK$", "FLOOD",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^EXTREME WIND ?CHILL$|^(EXTENDED|EXTREME|RECORD)? COLDS?$", "EXTREME COLD/WIND CHILL",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^WILD/FOREST FIRE$|^(WILD|BRUSH|FOREST)? ?FIRES?$", "WILDFIRE",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^RAIN/SNOW$|^(BLOWING|HEAVY|EXCESSIVE|BLOWING|ICE AND|RECORD)? ?SNOWS?.*", "HEAVY SNOW",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^(GUSTY|NON-SEVERE|NON ?-?THUNDERSTORM)? ?WIND.*|^ICE/STRONG WIND$", "STRONG WIND",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^HURRICANE.*$|^TYPHOON$", "HURRICANE/TYPHOON",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^(EXTREME|RECORD/EXCESSIVE|RECORD) HEAT$", "EXCESSIVE HEAT",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^UNSEASONABLY WARM AND DRY$|^DROUGHT.*|^HEAT WAVE DROUGHT$", "DROUGHT",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^TORNADO.*|^WHIRLWIND$|^GUSTNADO$|^TORNDAO$", "TORNADO",EVTYPE)]
+storm_data <- storm_data[,EVTYPE :=  gsub("^EXCESSIVE RAINFALL$|^RAIN.*|^TORRENTIAL RAINFALL$|^(HEAVY|HVY)? (RAIN|MIX|PRECIPITATION).*", "HEAVY RAIN",EVTYPE)]
+```
+
+After cleaning the data,we keep only those parameters that are important for analysis.This includes:
+EVTYPE      : Event Type.
+STATE       : State code.This is useful to check which states were adversely affected by a particular event.
+YEAR        : Year of occurance of the event.This is derived from the BGN_DATE.
+
+Economic Impact:
+We check extent of property damage and crop damage to gauge the economic impact of an event.
+PROPDMG     : Property damage.
+PROPDMGEXP  : Property damage exponent.
+CROPDMG     : Crops damage.
+CROPDMGEXP  : Crops damage exponent.
+
+Public Health Impact:
+The number of fatalities and injuries helps us check the human damage caused by the storm events. 
+FATALITIES  : Number of deaths caused by a particular event.
+INJURIES    : Number of injuries caused due to a particular event.
+
+```{r Selecting data}
+storm_data <- storm_data[,.(EVTYPE,STATE,PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP,YEAR,FATALITIES,INJURIES)]
+```
+
+Here we find the top events affecting public health from fatalities and injuries.This is achieved by grouping the records by EVTYPE (event type) and then summing it up by FATALITIES(or INJURIES as required).This is later arranged in descending order to get the event having the highest impact first.
+
+### Calculating the public impact
+
+```{r Public Health Impact}
+fatalities <- storm_data[,.(EventsCount = sum(FATALITIES)),by=EVTYPE][order(-EventsCount)][1:10]
+injuries <- storm_data[,.(EventsCount = sum(INJURIES)),by=EVTYPE][order(-EventsCount)][1:10]
+
+```
+
+Fatilities:
+
+```{r,results='asis',echo=FALSE}
+print(xtable(fatalities),type='html')
+```
+
+
+Injuries:
+
+```{r,results='asis',echo=FALSE}
+print(xtable(injuries),type='html')
+```
+
+To study the economic impact,it is first important to relate,in each record,the property damage exponent value (PROPDMGEXP) with its equivalent property damage value (PROPDMG).
+
+A similar approach is used to relate CROPDMG and CROPDMGEXP.
+
+The exponent values are first mapped with their equivalent values.[This github link](https://github.com/flyingdisc/RepData_PeerAssessment2/blob/master/how-to-handle-PROPDMGEXP.md) is used to perform the same rather than going by intution.The PROPDMG and CROPDMG are then multiplied with their respetive converted exponent values across each record.
+
+Two new columns PROPERTYDAMAGE,CROPDAMAGE are then calculated showing the computed values of property damage and crop damage respectively.
+
+```{r Cleaning data for Economic Impact}
+crops_levels <- levels(storm_data_raw$CROPDMGEXP)
+property_levels <- levels(storm_data_raw$PROPDMGEXP)
+all_levels <- union(crops_levels,property_levels)
+expression <- c("", "+", "-", "?", 0:8, "h", "H", "k", "K", "m", "M", "B")
+multiplier <- c(0, 1, 0, 0, rep(10,9), 2, 2, 3, 3, 6, 6, 9)
+substitute <- data.table(expression,multiplier)
+
+
+storm_data <- storm_data[,Replace := substitute[match(PROPDMGEXP,substitute[,expression]),multiplier]
+                        ][,Scaled_Prop := 10^Replace
+                        ][,PROPERTYDAMAGE := PROPDMG * Scaled_Prop #
+                        ][,`:=`(Replace = NULL, Scaled_Prop = NULL)]  
+
+storm_data <- storm_data[,Replace := substitute[match(CROPDMGEXP,substitute[,expression]),multiplier]
+                        ][,Scaled_Crop := 10^Replace 
+                        ][,CROPDAMAGE := CROPDMG * Scaled_Crop
+                        ][,`:=`(Replace = NULL, Scaled_Crop = NULL)] 
+
+```
+
+### Calculating the economic impact
+
+Now we find the top events having a greater economic impact.This is achieved by grouping the records by EVTYPE (event type) and then summing it up by PROPERTYDAMAGE(or CROPDAMAGE as required).This is later arranged in descending order to get the event having the highest consequence first.
+
+```{r Economic Impact}
+cropdamage <- storm_data[,.(EventsCount = sum(CROPDAMAGE)),by=EVTYPE][order(-EventsCount)][1:10]                
+propdamage <- storm_data[,.(EventsCount = sum(PROPERTYDAMAGE)),by=EVTYPE][order(-EventsCount)][1:10]                   
+```
+
+Crops damage:
+
+```{r,results='asis',echo=FALSE}
+print(xtable(cropdamage),type='html')
+```
+
+Property damage:
+
+```{r,results='asis',echo=FALSE}
+print(xtable(propdamage),type='html')
+```
+
+
+
+### Calculating the statewise spread of the top storm event that caused the maximum damage on public health and economy.
+
+Statewise analysis of the damages from the strom events.Same procedure of grouping is followed except that grouping is also done statewise.
+
+```{r Statewise impact}
+cropdamage_state <- storm_data[,.(EventsCount = sum(CROPDAMAGE)),by=list(STATE,EVTYPE)][order(-EventsCount)]                
+crop_damage_state <- subset(cropdamage_state,EVTYPE == cropdamage[1,EVTYPE] & EventsCount > 0)[1:5]
+
+
+propdamage_state <- storm_data[,.(EventsCount = sum(PROPERTYDAMAGE)),by=list(STATE,EVTYPE)][order(-EventsCount)]
+prop_damage_state <- subset(propdamage_state,EVTYPE == propdamage[1,EVTYPE] & EventsCount > 0)[1:5]
+
+
+fatalities_state <- storm_data[,.(EventsCount = sum(FATALITIES)),by=list(STATE,EVTYPE)][order(-EventsCount)]
+fatalities_damage_state <- subset(fatalities_state,EVTYPE == fatalities[1,EVTYPE] & EventsCount > 0)[1:5]
+
+
+injuries_state <- storm_data[,.(EventsCount = sum(INJURIES)),by=list(STATE,EVTYPE)][order(-EventsCount)]
+injuries_damage_state <- subset(injuries_state,EVTYPE == injuries[1,EVTYPE] & EventsCount > 0)[1:5]
+
+```
+
+
+
+Crops damage - Statewise:
+
+```{r,results='asis',echo=FALSE}
+print(xtable(crop_damage_state),type='html')
+```
+
+
+Property damage - Statewise:
+
+```{r,results='asis',echo=FALSE}
+print(xtable(prop_damage_state),type='html')
+```
+
+
+Fatalities - Statewise:
+
+```{r,results='asis',echo=FALSE}
+print(xtable(fatalities_damage_state),type='html')
+```
+
+
+Injuries - Statewise:
+
+```{r,results='asis',echo=FALSE}
+print(xtable(injuries_damage_state),type='html')
+```
+
+
+
+## **RESULTS**
+
+Visualisation of the impact of storm events on public health.
+
+```{r plot1-12}
+fatalities_plot <- ggplot(fatalities,aes(x = EVTYPE,y = EventsCount )) 
+fatalities_plot <- fatalities_plot  + geom_bar(stat = 'identity', binwidth = 1000) +
+                          xlab('Storm Events') + ylab('Number of Fatilities') +
+                          labs(title = 'Top ten storm events causing fatalities from 1996 - 2011') +
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5),
+                          axis.text.x = element_text(face = "bold",angle = 45, size=10, hjust = 1, vjust = 1))
+
+
+injuries_plot <- ggplot(injuries,aes(x = EVTYPE,y = EventsCount )) 
+injuries_plot <- injuries_plot  + geom_bar(stat = 'identity', binwidth = 1000) +
+                          xlab('Storm Events') + ylab('Number of Injuries') +
+                          labs(title = 'Top ten storm events causing injuries from 1996 - 2011') +
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5),
+                          axis.text.x = element_text(face = "bold",angle = 45, size=10, hjust = 1, vjust = 1))
+```
+
+
+### Top storm events resulting in fatalities and injuries.
+```{r plot1,fig.height=10}
+grid.arrange(fatalities_plot ,injuries_plot , nrow = 2)
+```
+
+
+Visualisation of the impact of storm events on economy.
+
+```{r plot2-12,fig.height=10}
+property_plot <- ggplot(propdamage,aes(x = EVTYPE,y = EventsCount/10^6 )) 
+property_plot <- property_plot  + geom_bar(stat = 'identity', binwidth = 1000) +
+                          xlab('Storm Events') + ylab('Amount in Millions') +
+                          labs(title = 'Top ten storm events causing property damages from 1996 - 2011') +
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5),
+                          axis.text.x = element_text(face = "bold",angle = 45, size=10, hjust = 1, vjust = 1))
+
+crops_plot <- ggplot(cropdamage,aes(x = EVTYPE,y = EventsCount/10^6 )) 
+crops_plot <- crops_plot + geom_bar(stat = 'identity', binwidth = 1000) +
+                          xlab('Storm Events') + ylab('Amount in Millions') +
+                          labs(title = 'Top ten storm events resulting in crop damages from 1996 - 2011') +
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5),
+                          axis.text.x = element_text(face = "bold",angle = 45, size=10, hjust = 1, vjust = 1))
+
+```
+
+
+### Top storm events resulting in property and crop loss.
+```{r plot2,fig.height=10}
+grid.arrange(property_plot ,crops_plot , nrow = 2)
+```
+
+Visualisation of the impact of storm events on public health.
+
+```{r plot3-1234}
+fatalities_state_plot <- ggplot(fatalities_damage_state,aes(x = STATE,y = EventsCount)) 
+fatalities_state_plot <- fatalities_state_plot  + geom_bar(stat = 'identity', binwidth = 100) +
+                          xlab('States') + ylab('Number of Fatilities') +
+                          labs(title = paste("Top five states affected by \n",fatalities_damage_state[,EVTYPE][1]," causing fatalities", sep=""))+
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5))
+
+
+
+injuries_state_plot <- ggplot(injuries_damage_state,aes(x = STATE,y = EventsCount)) 
+injuries_state_plot <- injuries_state_plot  + geom_bar(stat = 'identity', binwidth = 100) +
+                          xlab('States') + ylab('Number of Fatilities') +
+                          labs(title = paste("Top five states affected by \n ",injuries_damage_state[,EVTYPE][1]," causing injuries", sep=""))+
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5))
+
+
+prop_state_plot <- ggplot(prop_damage_state,aes(x = STATE,y = EventsCount)) 
+prop_state_plot <- prop_state_plot  + geom_bar(stat = 'identity', binwidth = 100) +
+                          xlab('States') + ylab('Number of Fatilities') +
+                          labs(title = paste("Top five states affected by \n",prop_damage_state[,EVTYPE][1]," causing property damage", sep=""))+
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5))
+
+
+crop_state_plot <- ggplot(crop_damage_state,aes(x = STATE,y = EventsCount)) 
+crop_state_plot <- crop_state_plot  + geom_bar(stat = 'identity', binwidth = 100) +
+                          xlab('States') + ylab('Number of Fatilities') +
+                          labs(title = paste("Top five states affected by \n",crop_damage_state[,EVTYPE][1]," causing crops loss", sep=""))+
+                          theme(plot.title = element_text(face ='bold',hjust = 0.5))
+
+```
+
+### State-wise spread of the most affecting storm event causing the most public and economic damage.
+```{r plot3,fig.height=10,fig.width=10}
+grid.arrange(injuries_state_plot,fatalities_state_plot,crop_state_plot,prop_state_plot,ncol=2,nrow = 2)
+```
