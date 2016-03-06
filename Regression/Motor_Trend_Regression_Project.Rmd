@@ -1,0 +1,134 @@
+---
+title: "Modelling the Fuel Efficiency : Motor Trend Data Analysis Report"
+author: "Vrinda Prabhu"
+date: "Saturday 05 March 2016"
+output: html_document
+---
+
+## Executive Summary
+In this report, we will analyze mtcars data set **(extracted from the 1974 Motor Trend US magazine)** to check which type of transmission results in better MPG,quantify it *AND* also attempt to find the relationship between a set of variables captured in the dataset and miles per gallon.   
+
+From the given data we observe that there is a difference in fuel efficency depending on transmission type.Cars with manual transmission achieve a fuel effiency of about 7 miles per gallon more than those with automatic transmission.   
+
+We then do exploratory data analyses and perform regression on the dataset.From the experiments we could infer that transmission type alone is not a particularly good predictor of fuel efficiency. We were able to zero-in that the weight of the automobile along with the transmission type are good predictors of fuel efficiency.Also when we included an iteraction term for weight (i.e. the transmission type),the model got better.Finally adding 1/4th mile time (qsec),we could arrive at a model having a very good adjusted R-squared value to explain the variance in miles per gallon (MPG).  
+
+```{r,echo=FALSE}
+library(ggplot2)
+library(GGally)
+```
+
+## Loading the mtcars dataset
+```{r}
+data(mtcars)
+```
+
+## Exploratory Data Analysis
+Sample data
+```{r}
+head(mtcars)
+```
+After converting - transmission type,number of forward gears ,V/S and number of carburetors - variables to factor, the dataset is fed as an input to ggpairs.Using the comprehensive output plot,we can check for correlations and influential variables that can be used as input variables to feed into regression model.    
+```{r}
+mtcars$am <- factor(mtcars$am, levels=c(0,1), labels=c('Auto', 'Man'))
+columnsForFactors = c(8,10,11) 
+mtcars[,columnsForFactors] <- lapply(mtcars[,columnsForFactors] , factor)
+corPlot <- ggpairs(mtcars[,-columnsForFactors] ,mapping = aes(color = am))
+```
+From the ggpairs output **(APPENDIX : Figure 1)**,we see that there is a strong relationship between weight and mpg (0.868).Also we can notice that weight has a strong relationship with displacement (0.88) and varies well with number of cylinders too(0.78). Number of cylinders has a very strong relationship with displacement (0.902) and also is significant towards determining mpg (0.852).Now let us proceed to build different regression models to investigate whether these variables can be used to predict fuel efficency.    
+
+
+## Fitting multiple regression models
+#### Model 1
+First we will just find the mpg variance explanation using only transmission type as the variable for lm. 
+```{r,results='hide'}
+fitTransmission <- lm(mpg ~ am,data=mtcars)
+summaryFitTx <- summary(fitTransmission)
+summaryFitTx$coefficients #hidden to restrict main text size
+```
+```{r}
+summaryFitTx$adj.r.squared
+```
+We notice that automobiles with a manual transmission got on average 7.245 more miles per gallon compared to ones with automatic transmission.  
+*(This result also comes through with the box plot of mpg vs am attached in appendix).* **(APPENDIX :Figure 2)**  
+
+#### Model 2
+The above model only had an adjusted R-squared value of 0.3385 ,meaning only 33.85% of the variance of the MPG variable can be explained using am alone.Now let us add weight variable to lm and check.  
+```{r,results='hide'}
+fitWeightTx <- lm(mpg ~ wt + am ,data=mtcars)
+summaryfitWeightTx <- summary(fitWeightTx)
+summaryfitWeightTx$coefficients #hidden to restrict main text size
+```
+```{r}
+summaryfitWeightTx$adj.r.squared
+```
+It can be seen that the above model has an adjusted R-squared value of 0.7358 ,meaning 73.58% of the variance of the MPG variable can be explained using am and wt.  
+
+#### Model 3
+However from ggpair plot,in the wt vs mpg frame,the scatterplot indicates that 'am' is an interaction term between “wt” variable and “mpg” variable.   
+```{r,results='hide'}
+fitWeightInterTx <- lm(mpg ~ wt:am + am ,data=mtcars)
+summaryfitWeightInterTx <- summary(fitWeightInterTx)
+summaryfitWeightInterTx$coefficients #hidden to restrict main text size
+```
+```{r}
+summaryfitWeightInterTx$adj.r.squared
+```
+The above model has an adjusted R-squared value of 0.8151 ,meaning 81.51% of the variance of the MPG variable can be explained using am and wt with interation term.  
+
+#### Model 4
+Let us now add the variable having least correlation with mpg,and check if there is any change in adjusted R-squared term.Variable 'qsec' also has very low cross-corellation with other variables,which prompts us to check the below model.   
+```{r,results='hide'}
+fitWt_TxQsec <- lm(mpg ~ wt:am + am + qsec,data=mtcars)
+summaryfitWt_TxQsec <- summary(fitWt_TxQsec)
+summaryfitWt_TxQsec$coefficients #hidden to restrict main text size
+```
+```{r}
+summaryfitWt_TxQsec$adj.r.squared 
+```
+The adjusted R-squared has now raised significantly to 0.8804,which means we can explain mpg variance well using only variables used in model above.
+
+#### Model 5
+Let us check if we can improve on above model by adding another variable.We will select gear.
+```{r,results='hide'}
+fitmod5 <- lm(mpg ~ wt:am + am + qsec + gear,data=mtcars)
+summaryfitmod5 <- summary(fitmod5)
+summaryfitmod5$coefficients #hidden to restrict main text size
+```
+```{r}
+summaryfitmod5$adj.r.squared
+```
+The adjusted R-squared has dipped below 0.8804 to 0.8746,which means addition of new variable had a contrasting effect on above model.
+
+
+## Residual Analysis and Diagnostics
+According to the residual plots **(APPENDIX Figure 3)**, we can draw two important inferences -   
+* No outliers are present since all values fall within the 0.5 bands in the Residuals vs. Leverage plot.  
+* Also the Normal Q-Q plot indicates that the residuals are normally distributed.  
+
+
+## Conclusion
+After doing sufficient exploratory data analyses and using regression models to find the best fit model, we could could conclude that that transmission type alone is not a particularly good predictor of fuel efficiency though automobiles with manual transmission fare better at fuel efficiency than automatic.  
+
+However,we discovered that the weight of the automobile along with an iteraction term for weight (i.e. the transmission type),the transmission type and 1/4th mile time (qsec) are good predictors of fuel efficiency having the highest adjusted R-squared value of 0.8804.   
+
+
+## APPENDIX
+####Figure 1 
+Pairs plot
+```{r,fig.width=10,fig.height=10}
+corPlot
+```
+
+####Figure 2
+Boxplot of mpg spread based on transmission type
+```{r}
+ggplot(data = mtcars,aes(am, mpg, color=am)) + geom_boxplot() + xlab("Transmission (0 = Automatic, 1 = Manual)") + ggtitle("Boxplot of mpg spread based on transmission type")
+```
+
+####Figure 3
+Residual plots
+```{r}
+par(mfrow = c(2, 2))
+plot(fitWt_TxQsec)
+```
+
