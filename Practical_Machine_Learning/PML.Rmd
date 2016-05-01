@@ -1,0 +1,159 @@
+---
+title: 'Practical Machine Learning : Course Project'
+author: "Vrinda Prabhu"
+date: "Sunday 01 May 2016"
+output: html_document
+---
+
+
+```{r, echo=FALSE}
+setwd('/home/vrinda/IntroToBDA/datasciencecoursera/Practical_Machine_Learning/')
+```
+
+Loading the required library
+```{r}
+library(caret)
+```
+
+
+## INTRODUCTION 
+The given training and validation datasets contain accelerometer data from the belt, forearm, arm, and dumbell of 6 research study participants. The training dataset consists of accelerometer data and a label identifying the quality of the activity the participant was doing. The validation data consists of accelerometer data without the identifying label.   
+
+Our goal is to predict the quality of performing the excercise on the validation dataset. The 5 possible methods include -
+
+A: exactly according to the specification  
+B: throwing the elbows to the front  
+C: lifting the dumbbell only halfway  
+D: lowering the dumbbell only halfway  
+E: throwing the hips to the front  
+
+We will precisely follow the methodolgy of prediction explicitly mentioned by Professor.Leek in the course.
+
+
+  
+### STEP 1: QUESTION
+Since we have the problem statement clearly mentioned in the introduction, let us be succinct in this section :
+
+By processing data gathered from accelerometers on the belt, forearm, arm, and dumbell of the participants, is it possible to predict appropriately the activity quality (class A-E) of the excercise using machine learning?
+
+
+  
+### STEP 2: INPUT DATA
+Download the train and the validation datasets.
+```{r}
+if (!file.exists("pml-training.csv")) {
+  download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile = "pml-training.csv")
+}
+if (!file.exists("pml-testing.csv")) {
+  download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile = "pml-testing.csv")
+}
+
+train_data <- read.csv("pml-training.csv", sep = ",", na.strings = c("", "NA"))
+validation_data <- read.csv("pml-testing.csv", sep = ",", na.strings = c("", "NA"))
+```
+
+The training dataset contains 19622 observations and 160 variables, while the validation dataset contains 20 observations and 160 variables. The "classe" variable in the training set is the outcome to predict.
+  
+  
+     
+### STEP 3: FEATURE SELECTION
+Let us clean the data by getting rid of observations with missing values as well as some meaningless variables.  
+
+Removing the NA values 
+```{r}
+train_data <- train_data[, colSums(is.na(train_data)) == 0] 
+validation_data <- validation_data[, colSums(is.na(validation_data)) == 0] 
+```
+
+Also let us remove the first 7 columns as they're unnecessary for predicting.  
+```{r}
+train_data <- train_data[,8:length(colnames(train_data))]
+validation_data <- validation_data[,8:length(colnames(validation_data))]
+```
+
+Let us also remove the variables with values near zero, that means that they have not so much meaning in the predictions.
+```{r}
+nzv <- nearZeroVar(train_data,saveMetrics=TRUE)
+train_data <- train_data[,nzv$nzv==FALSE] ## Included to assure scalability
+
+nzv <- nearZeroVar(validation_data,saveMetrics=TRUE)
+validation_data <- validation_data[,nzv$nzv==FALSE] ## Included to assure scalability
+```
+  
+  
+    
+### STEP 4 : ALGORITHM
+For addressing the question,I chose to experiment with two different algorithms via the caret package: classification trees (method = rpart) and random forests (method = rf).This is also because both the algorithms atomatically automatically select important variables and are quite robust to outliers . Also we will use 5-fold cross validation when applying the algorithms.
+
+Initaially let us further divide the training dataset to train and test datasets (70-30 split).
+```{r}
+set.seed(1516)
+inTrain <- createDataPartition(train_data$classe, p=0.70, list=F)
+trainData <- train_data[inTrain, ]
+testData <- train_data[-inTrain, ]
+
+controlRf <- trainControl(method="cv", 5)
+```
+  
+  
+#### **Running rpart algorithm**
+```{r}
+modelRpart <- train(classe ~ ., data=trainData, method="rpart", trControl=controlRf)
+modelRpart
+```
+
+Let us estimate the performance of the rpart model on the test data set.
+```{r}
+predictRpart <- predict(modelRpart, testData)
+confusionMatrix(testData$classe, predictRpart)
+
+accuracyRpart <- postResample(predictRpart, testData$classe)[1]
+print(paste('Accuracy Rpart :',accuracyRpart ))
+out_of_se <- 1 - as.numeric(confusionMatrix(testData$classe, predictRpart)$overall[1])
+print(paste('Out of sample error Rpart :',out_of_se ))
+```
+
+The **accuracy** from **Rpart** is pretty dissapointing at **49.73%** with an **out of sample error** of **0.50**  
+  
+  
+#### **Running random forest algorithm**
+
+**NOTE** : Since random forest takes long time to train,I save it as an RDS file once the model is ready.
+```{r}
+if (!file.exists("random_forest.rds")) {
+  modelRf <- train(classe ~ ., data=trainData, method="rf", trControl=controlRf, allowParallel=TRUE )  
+}else{
+  modelRf <- readRDS('random_forest.rds')
+}
+modelRf
+```
+
+
+Let us estimate the performance of the random forest model on the test data set.
+```{r}
+predictRf <- predict(modelRf, testData)
+confusionMatrix(testData$classe, predictRf)
+
+accuracyRf <- postResample(predictRf, testData$classe)[1]
+print(paste('Accuracy Random Forest :',accuracyRf ))
+out_of_se <- 1 - as.numeric(confusionMatrix(testData$classe, predictRf)$overall[1])
+print(paste('Out of sample error Random Forest :',out_of_se ))
+```
+
+The **accuracy** from **random forest** model is **99.67%** with an out of sample error of **0.0032**.
+
+The random forest fit is clearly more accurate than the rpart method with around 99% accuracy.
+  
+  
+  
+### STEP 5 : VALIDATION
+Let us use random forest model to predict on the 20 cases in the validation dataset.
+```{r}
+validate <- predict(modelRf, validation_data[, -length(names(validation_data))])
+validate
+```
+
+
+
+
+
